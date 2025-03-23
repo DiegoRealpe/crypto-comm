@@ -1,0 +1,4 @@
+cryptography==39.0.1
+pycryptodome==3.17
+ruff==0.0.275
+mypy==1.4.1

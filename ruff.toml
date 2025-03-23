@@ -1,0 +1,21 @@
+# Enable all rules by default
+select = ["ALL"]
+
+# Exclude specific rules or files
+exclude = [
+    ".git",
+    "__pycache__",
+    "venv",
+    "dist",
+    "build"
+]
+
+# Ignore specific rules
+ignore = [
+    "E203",  # Whitespace before ':' (conflicts with Black)
+    "E501",    # Line too long (disabled max line length rule)
+    "PLR2004", # Magic value used in comparison
+    "FBT001",  # Boolean positional argument in function call
+    "BLE001",
+    "D100",
+]
