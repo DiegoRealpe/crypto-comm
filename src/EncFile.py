@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import cast
 
-from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives import hashes, padding, serialization
 from cryptography.hazmat.primitives.asymmetric.ec import (
     ECDH,
     EllipticCurvePrivateKey,
@@ -53,27 +53,30 @@ def derive_aes_key(private_key: EllipticCurvePrivateKey , public_key: EllipticCu
 
 
 def encrypt_file(aes_key: bytes, plaintext_file: str, ciphertext_file: str) -> None:
-    """Encrypt a file using AES in CBC mode."""
-    if not Path(plaintext_file).exists():
-        logger.error("File '%s' does not exist.", plaintext_file)
-        sys.exit(1)
-    try:
-        # Generate a random IV
-        iv: bytes = os.urandom(16)
-        # Encrypt the plaintext using AES in CBC mode
-        cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv))
-        encryptor = cipher.encryptor()
-        with Path(plaintext_file).open("rb") as f:
-            plaintext: bytes = f.read()
-        ciphertext: bytes = encryptor.update(plaintext) + encryptor.finalize()
-        # Write IV and ciphertext to the output file
-        with Path(ciphertext_file).open("wb") as f:
-            f.write(iv + ciphertext)
-        logger.info("Plaintext length: %d", len(plaintext))
-        logger.info("Ciphertext length: %d", len(ciphertext))
-    except Exception as _e:
-        logger.exception("Error encrypting file.")
-        sys.exit(1)
+    """Encrypt a file using AES in CBC mode with PKCS7 padding."""
+    plaintext_path = Path(plaintext_file)
+    ciphertext_path = Path(ciphertext_file)
+
+    with plaintext_path.open("rb") as f:
+        plaintext: bytes = f.read()
+
+    # Generate a random IV (16 bytes for AES)
+    iv: bytes = os.urandom(16)
+
+    # Apply PKCS7 padding
+    padder = padding.PKCS7(128).padder()
+    padded_plaintext = padder.update(plaintext) + padder.finalize()
+
+    # Encrypt using AES in CBC mode
+    cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv))
+    encryptor = cipher.encryptor()
+    ciphertext: bytes = encryptor.update(padded_plaintext) + encryptor.finalize()
+
+    # Write IV and ciphertext to file
+    with ciphertext_path.open("wb") as f:
+        f.write(iv + ciphertext)
+    logger.info("Encryption complete. Saved to %s", ciphertext_path)
+
 
 
 def main() -> None:

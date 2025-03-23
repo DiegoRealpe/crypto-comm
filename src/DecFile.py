@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import cast
 
-from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives import hashes, padding, serialization
 from cryptography.hazmat.primitives.asymmetric.ec import (
     ECDH,
     EllipticCurvePrivateKey,
@@ -52,27 +52,26 @@ def derive_aes_key(private_key: EllipticCurvePrivateKey, public_key: EllipticCur
 
 
 def decrypt_file(aes_key: bytes, ciphertext_file: str) -> None:
-    """Decrypt a file using AES in CBC mode."""
-    if not Path(ciphertext_file).exists():
-        logger.error("File '%s' does not exist.", ciphertext_file)
-        sys.exit(1)
-    try:
-        with Path(ciphertext_file).open("rb") as f:
-            iv: bytes = f.read(16)
-            ciphertext: bytes = f.read()
-        cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv))
-        decryptor = cipher.decryptor()
-        plaintext: bytes = decryptor.update(ciphertext) + decryptor.finalize()
+    """Decrypt a file using AES in CBC mode and remove PKCS7 padding."""
+    ciphertext_path = Path(ciphertext_file)
 
-        logger.info("Decryption successful.")
-        logger.info("Ciphertext length: %d", len(ciphertext))
-        logger.info("Plaintext length: %d", len(plaintext))
+    with ciphertext_path.open("rb") as f:
+        iv = f.read(16)  # First 16 bytes = IV
+        ciphertext = f.read()
 
-        print(f"Decrypted plaintext:\n{plaintext.decode(errors='ignore')}")  # Handle potential decoding issues  # noqa: T201
+    # Decrypt using AES in CBC mode
+    cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv))
+    decryptor = cipher.decryptor()
+    padded_plaintext = decryptor.update(ciphertext) + decryptor.finalize()
 
-    except Exception as _e:
-        logger.exception("Error decrypting file.")
-        sys.exit(1)
+    # Remove PKCS7 padding
+    unpadder = padding.PKCS7(128).unpadder()
+    plaintext = unpadder.update(padded_plaintext) + unpadder.finalize()
+
+    print(f"Decrypted plaintext:\n{plaintext.decode(errors='ignore')}")  # noqa: T201
+    logger.info("Decryption complete.")
+
+
 
 
 def main() -> None:
